@@ -37,7 +37,7 @@ class FrameExtractor():
             success,image = self.vid_cap.read()
             if not success: break
             if frame_cnt % every_x_frame == 0 and frame_cnt >= start_frame and (frame_cnt < end_frame or end_frame == -1):
-                img_path = os.path.join(dest_path, ''.join([img_name,  '%06d' % (img_cnt+1), img_ext]))
+                img_path = os.path.join(dest_path, ''.join([img_name,  '%06d' % img_cnt, img_ext]))
                 cv2.imwrite(img_path, image)
                 img_cnt += 1
             frame_cnt += 1
