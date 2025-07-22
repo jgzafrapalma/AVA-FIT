@@ -17,49 +17,49 @@ import matplotlib.pyplot as plt
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-def plot_over_image(frame, points_2d=np.array([]), with_ids=True, with_limbs=True, path_to_write=None, fontsize=20):
-    num_points = points_2d.shape[0]
-    fig, ax = plt.subplots(figsize=(10,10))
-    ax.imshow(frame)
-    if points_2d.shape[0]:
-        ax.plot(points_2d[:, 0], points_2d[:, 1], 'x', markeredgewidth=10, color='white')
-        if with_ids:
-            for i in range(num_points):
-                ax.text(points_2d[i, 0], points_2d[i, 1], str(i), color='red', fontsize=fontsize)
-        if with_limbs:
-            limbs = [[10, 9], [9, 8], [8, 11], [8, 14], [11, 12], [14, 15], [12, 13], [15, 16],
-                    [8, 7], [7, 0], [0, 1], [0, 4], [1, 2], [4, 5], [2, 3], [5, 6],
-                    [13, 21], [13, 22], [16, 23], [16, 24], [3, 17], [3, 18], [6, 19], [6, 20]]
-            for limb in limbs:
-                if limb[0] < num_points and limb[1] < num_points:
-                    ax.plot([points_2d[limb[0], 0], points_2d[limb[1], 0]], 
-                            [points_2d[limb[0], 1], points_2d[limb[1], 1]],
-                            linewidth=12.0)
+# def plot_over_image(frame, points_2d=np.array([]), with_ids=True, with_limbs=True, path_to_write=None, fontsize=20):
+#     num_points = points_2d.shape[0]
+#     fig, ax = plt.subplots(figsize=(10,10))
+#     ax.imshow(frame)
+#     if points_2d.shape[0]:
+#         ax.plot(points_2d[:, 0], points_2d[:, 1], 'x', markeredgewidth=10, color='white')
+#         if with_ids:
+#             for i in range(num_points):
+#                 ax.text(points_2d[i, 0], points_2d[i, 1], str(i), color='red', fontsize=fontsize)
+#         if with_limbs:
+#             limbs = [[10, 9], [9, 8], [8, 11], [8, 14], [11, 12], [14, 15], [12, 13], [15, 16],
+#                     [8, 7], [7, 0], [0, 1], [0, 4], [1, 2], [4, 5], [2, 3], [5, 6],
+#                     [13, 21], [13, 22], [16, 23], [16, 24], [3, 17], [3, 18], [6, 19], [6, 20]]
+#             for limb in limbs:
+#                 if limb[0] < num_points and limb[1] < num_points:
+#                     ax.plot([points_2d[limb[0], 0], points_2d[limb[1], 0]], 
+#                             [points_2d[limb[0], 1], points_2d[limb[1], 1]],
+#                             linewidth=12.0)
             
-    plt.axis('off')
-    plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-                hspace = 0, wspace = 0)
-    plt.margins(0,0)
-    plt.gca().xaxis.set_major_locator(plt.NullLocator())
-    plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    if path_to_write:
-        plt.ioff()
-        plt.savefig(path_to_write, pad_inches = 0, bbox_inches='tight')
+#     plt.axis('off')
+#     plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+#                 hspace = 0, wspace = 0)
+#     plt.margins(0,0)
+#     plt.gca().xaxis.set_major_locator(plt.NullLocator())
+#     plt.gca().yaxis.set_major_locator(plt.NullLocator())
+#     if path_to_write:
+#         plt.ioff()
+#         plt.savefig(path_to_write, pad_inches = 0, bbox_inches='tight')
 
 
-def project_3d_to_2d(points3d, intrinsics, intrinsics_type):
-    if intrinsics_type == 'w_distortion':
-        p = intrinsics['p'][:, [1, 0]]
-        x = points3d[:, :2] / points3d[:, 2:3]
-        r2 = np.sum(x**2, axis=1)
-        radial = 1 + np.transpose(np.matmul(intrinsics['k'], np.array([r2, r2**2, r2**3])))
-        tan = np.matmul(x, np.transpose(p))
-        xx = x*(tan + radial) + r2[:, np.newaxis] * p
-        proj = intrinsics['f'] * xx + intrinsics['c']
-    elif intrinsics_type == 'wo_distortion':
-        xx = points3d[:, :2] / points3d[:, 2:3]
-        proj = intrinsics['f'] * xx + intrinsics['c']
-    return proj
+# def project_3d_to_2d(points3d, intrinsics, intrinsics_type):
+#     if intrinsics_type == 'w_distortion':
+#         p = intrinsics['p'][:, [1, 0]]
+#         x = points3d[:, :2] / points3d[:, 2:3]
+#         r2 = np.sum(x**2, axis=1)
+#         radial = 1 + np.transpose(np.matmul(intrinsics['k'], np.array([r2, r2**2, r2**3])))
+#         tan = np.matmul(x, np.transpose(p))
+#         xx = x*(tan + radial) + r2[:, np.newaxis] * p
+#         proj = intrinsics['f'] * xx + intrinsics['c']
+#     elif intrinsics_type == 'wo_distortion':
+#         xx = points3d[:, :2] / points3d[:, 2:3]
+#         proj = intrinsics['f'] * xx + intrinsics['c']
+#     return proj
 
 
 def get_args():
@@ -69,7 +69,7 @@ def get_args():
     parser.add_argument("--video_file", type=str, required=True, help="Video file to visualize")
     parser.add_argument("--cam_params_file", type=str, required=True, help="Camera parameters file")
     parser.add_argument("--frame_id", type=int, required=True, help="Frame id to visualize")
-    parser.add_argument("--error", type=float, required=False, help="Error to visualize")
+    parser.add_argument("--error", type=float, required=False, default=0.0, help="Error to visualize")
     parser.add_argument("--out_folder", type=str, required=False, help="Output folder to save the visualization")
     
     return parser.parse_args()
@@ -96,8 +96,8 @@ def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: st
     v3d_hat = preds['v3d']
     pelvis_hat = preds['transl_pelvis']
 
-    frame_str = f"{frame_id:06d}"
-    pred_position = np.where(preds['img_path'] == frame_str)[0]
+    img_ids = np.array([int(p) for p in preds['img_path']])
+    pred_position = np.where(img_ids == frame_id)[0][0]
 
     v3d = v3d[frame_id]
     pelvis = pelvis[frame_id]
@@ -109,15 +109,18 @@ def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: st
     v3d_ctx = v3d - pelvis
     v3d_hat_ctx = v3d_hat - pelvis_hat
 
-
-    if v3d_ctx.shape[0] == 6890:
-        neutral_model = SMPL(SMPL_PATH).to(device)
-
-    elif v3d_ctx.shape[0] == 10475:
-        neutral_model = SMPLX(SMPLX_PATH).to(device)
+    gt_neutral_model = SMPLX(SMPLX_PATH).to(device)
     
-    mesh_gt = create_trimesh(v3d_ctx, neutral_model.faces, color=[0, 255, 0])
-    mesh_pred = create_trimesh(v3d_hat_ctx[0], neutral_model.faces, color=[255, 0, 0])
+    if v3d_hat_ctx.shape[0] == 6890:
+        pred_neutral_model = SMPL(SMPL_PATH).to(device)
+
+    elif v3d_hat_ctx.shape[0] == 10475:
+        pred_neutral_model = SMPLX(SMPLX_PATH).to(device)
+
+    mesh_gt = create_trimesh(v3d_ctx, gt_neutral_model.faces, color=[0, 255, 0])
+    mesh_pred = create_trimesh(v3d_hat_ctx, pred_neutral_model.faces, color=[255, 0, 0])
+
+    # Faltaría renderizar los meshes y superponerlos en el frame
 
     cv2.imwrite(os.path.join(out_folder, f"{error:.2f}_{frame_id:06d}.png"), frame)
 

@@ -57,9 +57,9 @@ def run_method_video(method, video, target_dir, device, render, cpu_cores, save_
     if extra_views:
         base_command += f" --extra_views"
 
-    command = f'/bin/bash -i -c "{base_command}"'
+    #command = f'/bin/bash -c "{base_command}"'
 
-    subprocess.run(command, env=new_home, shell=True)
+    subprocess.run(base_command, env=new_home, shell=True, executable='/bin/bash')
 
 def get_fit3d_predictions(args):
 
@@ -100,6 +100,10 @@ def get_fit3d_predictions(args):
                 print(f"Processing {participant}/{viewpoint}/{exercise}")
 
                 method_output = pathlib.Path(os.path.join(args.output_path, participant, exercise, viewpoint))
+
+                if not args.exercises and method_output.exists() and any(method_output.iterdir()):
+                    print(f"[SKIP] Ya existen predicciones para {participant}/{viewpoint}/{exercise}")
+                    continue
 
                 method_output.mkdir(parents=True, exist_ok=True)
 

@@ -126,38 +126,6 @@ def prepate_gt(gt_path, smplx_neutral, save_path, participants=None):
 
                 camera_smplx_params = get_camera_smplx_params(smplx_params, cam_params)
 
-                # betas = torch.tensor(smplx_params['betas'], dtype=torch.float32).to(device) # [B, 10]
-                # global_orient = torch.tensor(rotation_camera_view(smplx_params['global_orient'], cam_params), dtype=torch.float32).to(device) # [B, 1, 3, 3]
-                # body_pose = torch.tensor(smplx_params['body_pose'], dtype=torch.float32).to(device) # [B, 21, 3, 3]
-                # left_hand_pose = torch.tensor(smplx_params['left_hand_pose'], dtype=torch.float32).to(device) # [B, 15, 3, 3]
-                # right_hand_pose = torch.tensor(smplx_params['right_hand_pose'], dtype=torch.float32).to(device) # [B, 15, 3, 3]
-                # jaw_pose = torch.tensor(smplx_params['jaw_pose'], dtype=torch.float32).to(device) # [B, 1, 3, 3]
-                # leye_pose = torch.tensor(smplx_params['leye_pose'], dtype=torch.float32).to(device) # [B, 1, 3, 3]
-                # reye_pose = torch.tensor(smplx_params['reye_pose'], dtype=torch.float32).to(device) # [B, 1, 3, 3]
-                # expression = torch.tensor(smplx_params['expression'], dtype=torch.float32).to(device) # [B, 10]
-                # #transl = torch.tensor(smplx_params['transl'], dtype=torch.float32).to(device) # [B, 3]
-
-
-                # global_orient = rotation_matrix_to_axis_angle(global_orient) # [B, 1, 3]
-                # body_pose = rotation_matrix_to_axis_angle(body_pose) # [B, 21, 3]
-                # jaw_pose = rotation_matrix_to_axis_angle(jaw_pose) # [B, 1, 3]
-                # left_hand_pose = rotation_matrix_to_axis_angle(left_hand_pose) # [B, 15, 3]
-                # right_hand_pose = rotation_matrix_to_axis_angle(right_hand_pose) # [B, 15, 3]
-                # leye_pose = rotation_matrix_to_axis_angle(leye_pose) # [B, 1, 3]
-                # reye_pose = rotation_matrix_to_axis_angle(reye_pose) # [B, 1, 3]
-
-                # smplx_output = smplx_neutral(betas=betas,
-                #                             body_pose=body_pose,
-                #                             global_orient=global_orient,
-                #                             jaw_pose=jaw_pose,
-                #                             leye_pose=leye_pose,
-                #                             reye_pose=reye_pose,
-                #                             left_hand_pose=left_hand_pose,
-                #                             right_hand_pose=right_hand_pose,
-                #                             expression=expression,
-                #                             pose2rot=True)
-
-
                 global_orient = rotation_matrix_to_axis_angle(camera_smplx_params['global_orient']) # [B, 1, 3]
                 body_pose = rotation_matrix_to_axis_angle(camera_smplx_params['body_pose']) # [B, 21, 3]
                 jaw_pose = rotation_matrix_to_axis_angle(camera_smplx_params['jaw_pose']) # [B, 1, 3]

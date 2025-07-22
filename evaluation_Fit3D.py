@@ -1,5 +1,5 @@
 import os
-import roma
+import pathlib
 import torch
 import joblib
 import pickle
@@ -17,6 +17,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 with open(SMPLX2SMPL_REGRESSOR, 'rb') as f:
     smplx2smpl_regressor = torch.from_numpy(pickle.load(f)['matrix'].astype(np.float32)).to(device)
+
 
 def evaluation_Fit3D(predictions_path, gt_smplx_path, output_path, 
                      participants = None, exercises = None, viewpoints = None):
@@ -89,14 +90,14 @@ def evaluation_Fit3D(predictions_path, gt_smplx_path, output_path,
 
                     print(f"SMPLX: MPVPE: {pve.mean():.2f} - PA-MPVPE: {pa_pve.mean():.2f}")
 
+                    # Get SMPL vertices from predictions
+                    v3d_hat_ctx = torch.from_numpy(v3d_hat_ctx).to(device)
+                    v3d_hat_ctx = smplx2smpl_regressor @ v3d_hat_ctx
+                    v3d_hat_ctx = v3d_hat_ctx.cpu().numpy()
+                    
+                # GT to SMPL
                 v3d_ctx = torch.from_numpy(v3d_ctx).to(device)
-                v3d_hat_ctx = torch.from_numpy(v3d_hat_ctx).to(device)
-
-                # Get SMPL vertices
-                v3d_hat_ctx = smplx2smpl_regressor @ v3d_hat_ctx
                 v3d_ctx = smplx2smpl_regressor @ v3d_ctx
-
-                v3d_hat_ctx = v3d_hat_ctx.cpu().numpy()
                 v3d_ctx = v3d_ctx.cpu().numpy()
 
                 pve = ((np.sqrt(((v3d_ctx - v3d_hat_ctx) ** 2).sum(-1))) * 1000).mean(axis=1)
@@ -138,11 +139,11 @@ def evaluation_Fit3D(predictions_path, gt_smplx_path, output_path,
                 if viewpoint not in results[participant][exercise]:
                     results[participant][exercise][viewpoint] = {}
                 
-                results[participant][exercise][viewpoint] = {"MPVPE": pve, "PA-MPVPE": pa_pve, "MPJPE": mpjpe, "PA-MPJPE": pa_mpjpe,
+                results[participant][exercise][viewpoint] = {"MPJPE": mpjpe, "PA-MPJPE": pa_mpjpe, "MPVPE": pve, "PA-MPVPE": pa_pve,
                                                              "paths": np.array(paths_selected)}
                 
-                #print(f"MPVPE: {pve.mean():.2f} - PA-MPVPE: {pa_pve.mean():.2f}")
-
+    pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+    
     with open(os.path.join(output_path, 'results.pkl'), "wb") as f:
         joblib.dump(results, f)
             
@@ -199,7 +200,7 @@ def compute_similarity_transform_batch(S1, S2):
 
 def get_args():
     parser = argparse.ArgumentParser(description="Get metrics from multi-hmr predictions")
-    parser.add_argument("--preds_path", type=str, required=True, help="Paht to the predictions files")
+    parser.add_argument("--preds_path", type=str, required=True, help="Path to the predictions files")
     parser.add_argument("--gt_smplx_path", type=str, required=True, help="Path to the SMPLX vertices and pelvis GT")
     parser.add_argument("--participants", nargs='+', required=False, help="Participants to process")
     parser.add_argument("--viewpoints", nargs='+', required=False, help="Viewpoints to process")
