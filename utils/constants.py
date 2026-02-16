@@ -6,5 +6,7 @@ SMPLX2SMPL_REGRESSOR = "/opt2/data/jzafra/data/smplx_to_smpl/smplx_to_smpl.pkl"
 J_REGRESSOR_H36M = "/opt2/data/jzafra/data/J_regressor_h36m.npy"
 SMPLX_PATH = "/opt2/data/jzafra/data/smplx"
 SMPL_PATH = "/opt2/data/jzafra/data/smpl"
+SMPL_SEGMENTATION_JSON = "/opt2/data/jzafra/data/segmentation/smpl/smpl_vert_segmentation.json"
+SMPLX_SEGMENTATION_JSON = "/opt2/data/jzafra/data/segmentation/smplx/smplx_vert_segmentation.json"
 
 FIT3D_PATH = "/opt2/data/jzafra/datasets/fit3d"

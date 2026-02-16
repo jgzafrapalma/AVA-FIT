@@ -10,13 +10,14 @@ new_home = os.environ.copy()
 new_home["HOME"] = HOME
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Get predictions from 3D reconstruction models for the fit3D dataset")
+    parser = argparse.ArgumentParser(description="Get predictions from 3D reconstruction models for the AVA-FIT dataset")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to the dataset")
     parser.add_argument("--output_path", type=str, required=True, help="Output path")
     parser.add_argument("--method", type=str, required=True, help="Available models: [4D-Humans]")
     parser.add_argument("--participants", nargs='+', required=False, help="Participants to process")
     parser.add_argument("--camera_ids", nargs='+', required=False, help="Viewpoints to process")
     parser.add_argument("--exercises", nargs='+', required=False, help="Exercises to process")
+    parser.add_argument("--repetitions", nargs='+', required=False, help="Repetitions to process")
     parser.add_argument("--checkpoint", type=str, required=False, help="path to checkpoint")
     parser.add_argument("--model_name", type=str, required=False, help="model name")
     parser.add_argument("--device", type=int, required=False, default=0, help='device to use')
@@ -60,60 +61,42 @@ def run_method_video(method, video, target_dir, device, render, cpu_cores, save_
 
     subprocess.run(base_command, env=new_home, shell=True, executable='/bin/bash')
 
-def get_fit3d_predictions(args):
+def get_avafit_predictions(args):
 
-    if not args.participants:
-        participants = sorted(os.listdir(os.path.join(args.dataset_path, 'train')))
-    else:
-        participants = sorted(args.participants)
+    for video in sorted(os.listdir(os.path.join(args.dataset_path, 'videos'))):
+        video_name_split = video.split('_')
+        participant = video_name_split[1] + '_' + video_name_split[2]
+        exercise = video_name_split[3]
+        repetition = video_name_split[4]
+        viewpoint = video_name_split[5]
+    
+        if args.participants and participant not in args.participants:
+            continue
+        if args.camera_ids and viewpoint not in args.camera_ids:
+            continue
+        if args.exercises and exercise not in args.exercises:
+            continue
+        if args.repetitions and repetition not in args.repetitions:
+            continue
 
-    for participant in participants:
+        print(f"Processing {participant}/{viewpoint}/{exercise}/{repetition}")
 
-        if not args.camera_ids:
-            camera_ids = sorted(os.listdir(os.path.join(args.dataset_path, 'train', participant, 'videos')))
-        else:
-            camera_ids = sorted(args.camera_ids)
+        method_output = pathlib.Path(os.path.join(args.output_path, participant, exercise, viewpoint, repetition))
 
-        for camera_id in camera_ids:
-            
-            if not args.exercises:
-                exercises = sorted(os.listdir(os.path.join(args.dataset_path, 'train', participant, 'videos', camera_id)))
-                exercises = [pathlib.Path(exercise).stem for exercise in exercises]
-            else:
-                exercises = sorted(args.exercises)
+        if not args.exercises and method_output.exists() and method_output.is_dir():
+            # Check if exits de preds.npz file
+            preds_file = method_output / "preds.npz"
+            if preds_file.exists():
+                print(f"[SKIP] Ya existen predicciones para {participant}/{viewpoint}/{exercise}/{repetition}")
+                continue
 
-            for exercise in exercises:
+        method_output.mkdir(parents=True, exist_ok=True)
 
-                if camera_id == '60457274':
-                    viewpoint = 'view_front_left'
-                elif camera_id == '65906101':
-                    viewpoint = 'view_front_right'
-                elif camera_id == '50591643':
-                    viewpoint = 'view_back_left'
-                elif camera_id == '58860488':
-                    viewpoint = 'view_back_right'
-                else:
-                    print(f"Unknown camera id {camera_id}")
-                    sys.exit(1)
-
-                print(f"Processing {participant}/{viewpoint}/{exercise}")
-
-                method_output = pathlib.Path(os.path.join(args.output_path, participant, exercise, viewpoint))
-
-                if not args.exercises and method_output.exists() and method_output.is_dir():
-                    # Check if exits de preds.npz file
-                    preds_file = method_output / "preds.npz"
-                    if preds_file.exists():
-                        print(f"[SKIP] Ya existen predicciones para {participant}/{viewpoint}/{exercise}")
-                        continue
-
-                method_output.mkdir(parents=True, exist_ok=True)
-
-                run_method_video(args.method, os.path.join(args.dataset_path, 'train', participant, 'videos', camera_id, exercise + '.mp4'), method_output, args.device, args.render, args.cpu_cores, args.save_mesh, args.batch_size, args.checkpoint, args.model_name, args.extra_views)
+        run_method_video(args.method, os.path.join(args.dataset_path, 'videos', video), method_output, args.device, args.render, args.cpu_cores, args.save_mesh, args.batch_size, args.checkpoint, args.model_name, args.extra_views)
         
 def main(args):
 
-    get_fit3d_predictions(args)
+    get_avafit_predictions(args)
 
 if __name__ == "__main__":
     args = get_args()

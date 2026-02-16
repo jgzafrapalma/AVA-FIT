@@ -7,62 +7,34 @@ import pathlib
 import numpy as np
 import pandas as pd
 
-
-DATASET_DEFAULTS = {
-    'fit3d': {
-        'viewpoints': ['view_back_left', 'view_back_right', 'view_front_left', 'view_front_right'],
-        'repetitions': None,
-    },
-    'avafit': {
-        'viewpoints': ['0', '1', '2', '3'],
-        'repetitions': ['R001', 'R002', 'R003'],
-    },
-}
-
-
 def parse_args():
-    parser = argparse.ArgumentParser(description="Get top errors for participant, viewpoint and exercise")
+
+    parser = argparse.ArgumentParser(description="Get top errors for participant, viewpoint, repetition and exercise")
 
     parser.add_argument("--evaluation_file", type=str, required=True, help="path to the evaluation file")
-    parser.add_argument("--dataset", type=str, required=True, choices=list(DATASET_DEFAULTS.keys()),
-                        help="Dataset to process (fit3d or avafit)")
     parser.add_argument("--exercises", nargs='+', required=False, help="Exercises to process")
     parser.add_argument("--viewpoints", nargs='+', required=False, help="Viewpoints to process")
     parser.add_argument("--participants", nargs='+', required=False, help="Participants to process")
-    parser.add_argument("--repetitions", nargs='+', required=False, help="Repetitions to process (avafit only)")
-    parser.add_argument("--metrics", nargs='+', required=True, help="Metrics to process")
+    parser.add_argument("--repetitions", nargs='+', required=False, help="Repetitions to process")
+    parser.add_argument("--metrics", nargs='+', required=False, help="Metrics to process")
     parser.add_argument("--output_path", type=str, required=True, help="Output path")
 
     return parser.parse_args()
 
 
-def _get_values_and_paths(results, participant, exercise, viewpoint, repetitions, metrics):
-    """Extract metric values and paths, aggregating over repetitions if provided."""
-    if repetitions is None:
-        # Fit3D-style: direct access without repetition level
-        entry = results[participant][exercise][viewpoint]
-        paths = entry['paths']
-        values_per_metric = {metric: entry[metric] for metric in metrics}
-    else:
-        # AVA-FIT-style: aggregate across repetitions
-        paths = []
-        values_per_metric = {metric: [] for metric in metrics}
-        for repetition in repetitions:
-            if repetition not in results[participant][exercise][viewpoint]:
-                continue
-            rep_entry = results[participant][exercise][viewpoint][repetition]
-            paths.extend(rep_entry['paths'])
-            for metric in metrics:
-                values_per_metric[metric].extend(rep_entry[metric])
-
-    return paths, values_per_metric
-
-
 def get_top_min_errors(results, participants, viewpoints, exercises, repetitions, metrics, X=10):
+    # Crear dataframes para almacenar los valores medios por punto de vista
+    average_metrics_df = pd.DataFrame(columns=metrics, index=['3'])
+
+    # Diccionarios para almacenar los X fotogramas con mayor y menor error
     top_errors_per_case = {}
     mean_errors = {}
     median_errors = {}
 
+    # Inicializar listas para calcular promedios
+    metrics_totals = {viewpoint: {metric: [] for metric in metrics} for viewpoint in average_metrics_df.index}
+
+    # Recorrer los datos para calcular los valores medios y obtener los fotogramas con mayor y menor error
     for participant in participants:
         top_errors_per_case[participant] = {}
         mean_errors[participant] = {}
@@ -74,23 +46,40 @@ def get_top_min_errors(results, participants, viewpoints, exercises, repetitions
             median_errors[participant][exercise] = {}
 
             for viewpoint in viewpoints:
+                # Inicializar diccionarios para acumular valores de todas las repeticiones
+                aggregated_values = {metric: [] for metric in metrics}
+                aggregated_paths = []
+                
+                # Recopilar valores de todas las repeticiones
+                for repetition in repetitions:
+                    if repetition not in results[participant][exercise][viewpoint]:
+                        continue
+                        
+                    paths = results[participant][exercise][viewpoint][repetition]['paths']
+                    
+                    for metric in metrics:
+                        values = results[participant][exercise][viewpoint][repetition][metric]
+                        aggregated_values[metric].extend(values)
+                        
+                    # Guardar los paths (pueden repetirse entre repeticiones)
+                    aggregated_paths.extend(paths)
+                
+                # Ahora calcular top errors, mean y median con los valores agregados
                 top_errors_per_case[participant][exercise][viewpoint] = {}
                 mean_errors[participant][exercise][viewpoint] = {}
                 median_errors[participant][exercise][viewpoint] = {}
 
-                paths, values_per_metric = _get_values_and_paths(
-                    results, participant, exercise, viewpoint, repetitions, metrics
-                )
-
                 for metric in metrics:
-                    values = values_per_metric[metric]
-
+                    values = aggregated_values[metric]
+                    
                     if len(values) == 0:
                         continue
+                        
+                    metrics_totals[viewpoint][metric].extend(values)
 
                     # Top X errores máximos
                     top_errors_per_case[participant][exercise][viewpoint][metric] = [
-                        (paths[i], values[i]) for i, _ in sorted(enumerate(values), key=lambda x: x[1], reverse=True)[:X]
+                        (aggregated_paths[i], values[i]) for i, _ in sorted(enumerate(values), key=lambda x: x[1], reverse=True)[:X]
                     ]
 
                     # Mean and median value
@@ -100,26 +89,42 @@ def get_top_min_errors(results, participants, viewpoints, exercises, repetitions
                     # Find closest value to mean
                     mean_idx = int(np.argmin(np.abs(np.array(values) - mean_val)))
                     mean_errors[participant][exercise][viewpoint][metric] = [(
-                        paths[mean_idx], values[mean_idx]
+                        aggregated_paths[mean_idx], values[mean_idx]
                     )]
 
                     # Find closest value to median
                     median_idx = int(np.argmin(np.abs(np.array(values) - median_val)))
                     median_errors[participant][exercise][viewpoint][metric] = [(
-                        paths[median_idx], values[median_idx]
+                        aggregated_paths[median_idx], values[median_idx]
                     )]
 
     return top_errors_per_case, mean_errors, median_errors
 
 
 def main(args):
-    results = joblib.load(args.evaluation_file)
-    defaults = DATASET_DEFAULTS[args.dataset]
 
-    viewpoints = args.viewpoints or defaults['viewpoints']
-    participants = args.participants or list(results.keys())
-    exercises = args.exercises or sorted(results[list(results.keys())[0]])
-    repetitions = args.repetitions or defaults['repetitions']
+    PATH_HUMMAN_METRICS = args.evaluation_file
+    results = joblib.load(PATH_HUMMAN_METRICS)
+
+    if args.viewpoints: 
+        viewpoints = args.viewpoints
+    else:
+        viewpoints = ['0', '1', '2', '3']
+    
+    if args.participants:
+        participants = args.participants
+    else:
+        participants = results.keys()
+
+    if args.exercises:
+        exercises = args.exercises
+    else:
+        exercises = sorted(results[list(results.keys())[0]])
+    
+    if args.repetitions:
+        repetitions = args.repetitions
+    else:
+        repetitions = ['R001', 'R002', 'R003']
 
     top_errors_per_case, mean_errors, median_errors = get_top_min_errors(
         results, participants, viewpoints, exercises, repetitions, args.metrics
@@ -135,7 +140,6 @@ def main(args):
 
     with open(os.path.join(args.output_path, 'median_error.pkl'), 'wb') as f:
         pickle.dump(median_errors, f)
-
 
 if __name__ == '__main__':
     args = parse_args()

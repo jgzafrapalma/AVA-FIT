@@ -150,7 +150,7 @@ def prepate_gt(gt_path, smplx_neutral, save_path, participants=None):
                 vertices = smplx_output.vertices.detach().cpu().numpy() # [B, 10475, 3]
                 transl_pelvis = smplx_output.joints[:, 0, :].detach().cpu().numpy().reshape(-1, 1, 3) # [B, 1, 3]
                 
-                #Save the results
+                # Save the results
                 save_dir = os.path.join(save_path, participant, pathlib.Path(exercise).stem, viewpoint)
 
                 pathlib.Path(save_dir).mkdir(parents=True, exist_ok=True)
