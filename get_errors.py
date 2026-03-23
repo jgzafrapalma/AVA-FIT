@@ -1,140 +1,96 @@
 import os
-import pickle
+import json
 import joblib
 import argparse
 import pathlib
-
 import numpy as np
 import pandas as pd
 
 
-DATASET_DEFAULTS = {
-    'fit3d': {
-        'viewpoints': ['view_back_left', 'view_back_right', 'view_front_left', 'view_front_right'],
-        'repetitions': None,
-    },
-    'avafit': {
-        'viewpoints': ['0', '1', '2', '3'],
-        'repetitions': ['R001', 'R002', 'R003'],
-    },
-}
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Get top errors for participant, viewpoint and exercise")
-
-    parser.add_argument("--evaluation_file", type=str, required=True, help="path to the evaluation file")
-    parser.add_argument("--dataset", type=str, required=True, choices=list(DATASET_DEFAULTS.keys()),
-                        help="Dataset to process (fit3d or avafit)")
-    parser.add_argument("--exercises", nargs='+', required=False, help="Exercises to process")
-    parser.add_argument("--viewpoints", nargs='+', required=False, help="Viewpoints to process")
-    parser.add_argument("--participants", nargs='+', required=False, help="Participants to process")
-    parser.add_argument("--repetitions", nargs='+', required=False, help="Repetitions to process (avafit only)")
-    parser.add_argument("--metrics", nargs='+', required=True, help="Metrics to process")
+    parser.add_argument("--evaluation_path", type=str, required=True, help="path to the evaluation directory")
+    parser.add_argument("--metric", type=str, required=True, help="Metrics to process")
     parser.add_argument("--output_path", type=str, required=True, help="Output path")
-
+    parser.add_argument("--n", type=int, default=10, help="Number of top errors to get")
     return parser.parse_args()
 
 
-def _get_values_and_paths(results, participant, exercise, viewpoint, repetitions, metrics):
-    """Extract metric values and paths, aggregating over repetitions if provided."""
-    if repetitions is None:
-        # Fit3D-style: direct access without repetition level
-        entry = results[participant][exercise][viewpoint]
-        paths = entry['paths']
-        values_per_metric = {metric: entry[metric] for metric in metrics}
-    else:
-        # AVA-FIT-style: aggregate across repetitions
-        paths = []
-        values_per_metric = {metric: [] for metric in metrics}
-        for repetition in repetitions:
-            if repetition not in results[participant][exercise][viewpoint]:
-                continue
-            rep_entry = results[participant][exercise][viewpoint][repetition]
-            paths.extend(rep_entry['paths'])
-            for metric in metrics:
-                values_per_metric[metric].extend(rep_entry[metric])
+def _compute_errors(entry, metric, paths, X):
+    values = entry[metric]
+    arr = np.array(values)
 
-    return paths, values_per_metric
+    # Top X fotogramas con mayor error
+    top_indices = sorted(range(len(values)), key=lambda i: values[i], reverse=True)[:X]
+    top = {metric: [[paths[i], float(values[i])] for i in top_indices]}
+
+    # Fotograma más cercano a la media
+    mean_val = float(np.mean(arr))
+    mean_idx = int(np.argmin(np.abs(arr - mean_val)))
+    mean = {metric: [[paths[mean_idx], float(values[mean_idx])]]}
+
+    # Fotograma más cercano a la mediana
+    median_val = float(np.median(arr))
+    median_idx = int(np.argmin(np.abs(arr - median_val)))
+    median = {metric: [[paths[median_idx], float(values[median_idx])]]}
+
+    return top, mean, median
 
 
-def get_top_min_errors(results, participants, viewpoints, exercises, repetitions, metrics, X=10):
-    top_errors_per_case = {}
-    mean_errors = {}
-    median_errors = {}
-
-    for participant in participants:
+def get_top_mean_median_errors(results, metric, X, dataset_name):
+    top_errors_per_case, mean_errors, median_errors = {}, {}, {}
+    for participant, exercises in results.items():
         top_errors_per_case[participant] = {}
         mean_errors[participant] = {}
         median_errors[participant] = {}
-
-        for exercise in exercises:
+        for exercise, viewpoints in exercises.items():
             top_errors_per_case[participant][exercise] = {}
             mean_errors[participant][exercise] = {}
             median_errors[participant][exercise] = {}
-
-            for viewpoint in viewpoints:
-                top_errors_per_case[participant][exercise][viewpoint] = {}
-                mean_errors[participant][exercise][viewpoint] = {}
-                median_errors[participant][exercise][viewpoint] = {}
-
-                paths, values_per_metric = _get_values_and_paths(
-                    results, participant, exercise, viewpoint, repetitions, metrics
-                )
-
-                for metric in metrics:
-                    values = values_per_metric[metric]
-
-                    if len(values) == 0:
-                        continue
-
-                    # Top X errores máximos
-                    top_errors_per_case[participant][exercise][viewpoint][metric] = [
-                        (paths[i], values[i]) for i, _ in sorted(enumerate(values), key=lambda x: x[1], reverse=True)[:X]
-                    ]
-
-                    # Mean and median value
-                    mean_val = float(np.mean(values))
-                    median_val = float(np.median(values))
-
-                    # Find closest value to mean
-                    mean_idx = int(np.argmin(np.abs(np.array(values) - mean_val)))
-                    mean_errors[participant][exercise][viewpoint][metric] = [(
-                        paths[mean_idx], values[mean_idx]
-                    )]
-
-                    # Find closest value to median
-                    median_idx = int(np.argmin(np.abs(np.array(values) - median_val)))
-                    median_errors[participant][exercise][viewpoint][metric] = [(
-                        paths[median_idx], values[median_idx]
-                    )]
-
+            for viewpoint, vp_data in viewpoints.items():
+                if dataset_name == 'avafit':
+                    top_errors_per_case[participant][exercise][viewpoint] = {}
+                    mean_errors[participant][exercise][viewpoint] = {}
+                    median_errors[participant][exercise][viewpoint] = {}
+                    for repetition, rep_entry in vp_data.items():
+                        t, m, med = _compute_errors(rep_entry, metric, rep_entry['paths'], X)
+                        top_errors_per_case[participant][exercise][viewpoint][repetition] = t
+                        mean_errors[participant][exercise][viewpoint][repetition] = m
+                        median_errors[participant][exercise][viewpoint][repetition] = med
+                else:
+                    t, m, med = _compute_errors(vp_data, metric, vp_data['paths'], X)
+                    top_errors_per_case[participant][exercise][viewpoint] = t
+                    mean_errors[participant][exercise][viewpoint] = m
+                    median_errors[participant][exercise][viewpoint] = med
     return top_errors_per_case, mean_errors, median_errors
 
 
 def main(args):
-    results = joblib.load(args.evaluation_file)
-    defaults = DATASET_DEFAULTS[args.dataset]
-
-    viewpoints = args.viewpoints or defaults['viewpoints']
-    participants = args.participants or list(results.keys())
-    exercises = args.exercises or sorted(results[list(results.keys())[0]])
-    repetitions = args.repetitions or defaults['repetitions']
-
-    top_errors_per_case, mean_errors, median_errors = get_top_min_errors(
-        results, participants, viewpoints, exercises, repetitions, args.metrics
-    )
-
-    pathlib.Path(args.output_path).mkdir(parents=True, exist_ok=True)
-
-    with open(os.path.join(args.output_path, 'top_error.pkl'), 'wb') as f:
-        pickle.dump(top_errors_per_case, f)
-
-    with open(os.path.join(args.output_path, 'mean_error.pkl'), 'wb') as f:
-        pickle.dump(mean_errors, f)
-
-    with open(os.path.join(args.output_path, 'median_error.pkl'), 'wb') as f:
-        pickle.dump(median_errors, f)
+    for evaluation_folder in os.listdir(args.evaluation_path):
+        dataset_name = evaluation_folder.split('_')[0]
+        results = joblib.load(os.path.join(args.evaluation_path, evaluation_folder, 'results.pkl'))
+        top_errors_per_case, mean_errors, median_errors = get_top_mean_median_errors(
+            results, args.metric, args.n, dataset_name
+        )
+        output_path = os.path.join(args.output_path, f"{evaluation_folder}_{args.metric}")
+        pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
+        with open(os.path.join(output_path, 'top_error.json'), 'w') as f:
+            json.dump(top_errors_per_case, f, indent=4, cls=NumpyEncoder)
+        with open(os.path.join(output_path, 'mean_error.json'), 'w') as f:
+            json.dump(mean_errors, f, indent=4, cls=NumpyEncoder)
+        with open(os.path.join(output_path, 'median_error.json'), 'w') as f:
+            json.dump(median_errors, f, indent=4, cls=NumpyEncoder)
 
 
 if __name__ == '__main__':

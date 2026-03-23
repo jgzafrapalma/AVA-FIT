@@ -1,12 +1,13 @@
 import os
 import cv2
 import sys
+import json
 import torch
-import joblib
 import pathlib
 import trimesh
 import argparse
 import numpy as np
+import glob
 
 camera_id_to_viewpoint = {
     '60457274': 'view_front_left',
@@ -34,30 +35,86 @@ def get_args():
     return parser.parse_args()
 
 
-def visualize_errors(errors_path: str, pred_path: str, gt_path: str, out_folder: str, dataset_path:str) -> None:
-
+def visualize_errors(errors_path: str, pred_path: str, gt_path: str, out_folder: str, dataset_path: str) -> None:
+    dataset_name = pathlib.Path(dataset_path).name
     pathlib.Path(out_folder).mkdir(parents=True, exist_ok=True)
 
-    errors = joblib.load(errors_path)
+    with open(errors_path, 'r') as f:
+        errors = json.load(f)
 
-    for participant in errors.keys():
-        for exercise in errors[participant].keys():
-            for viewpoint in errors[participant][exercise].keys():
-                for metric in errors[participant][exercise][viewpoint].keys():
-                    print(f"Processing {participant} - {exercise} - {viewpoint} - {metric}")
-                    for frame_path, error in errors[participant][exercise][viewpoint][metric]:
-                        print(f"Processing {frame_path} - {error}")
+    for participant, exercises in errors.items():
+        for exercise, viewpoints in exercises.items():
+            for viewpoint, data in viewpoints.items():
+                _process_viewpoint(
+                    data, dataset_name, dataset_path,
+                    participant, exercise, viewpoint,
+                    pred_path, gt_path, out_folder
+                )
 
-                        video_file = os.path.join(dataset_path, 'train', participant, 'videos', viewpoint_to_camera_id[viewpoint], f"{exercise}.mp4")
-                        cam_params_file = os.path.join(dataset_path, 'train', participant, 'camera_parameters', viewpoint_to_camera_id[viewpoint], f"{exercise}.json")
-                        cmd = f"python visualize_3D_frame.py --pred_file {os.path.join(pred_path, participant, exercise, viewpoint, 'preds.npz')} --gt_file {os.path.join(gt_path, participant, exercise, viewpoint, 'gt.npz')} --frame_id {int(frame_path)} --out_folder {os.path.join(out_folder, participant, exercise, viewpoint, metric)} --error {error} --video_file {video_file} --cam_params_file {cam_params_file}"
-                        os.system(cmd)
+
+def _get_video_file(dataset_name: str, dataset_path: str, participant: str, exercise: str, viewpoint: str, repetition: str = None) -> str:
+    if dataset_name == 'avafit':
+        video_dir = os.path.join(dataset_path, 'videos')
+        matches = glob.glob(os.path.join(video_dir, f"seq_{participant}_{exercise}_{repetition}_{viewpoint}_*.mp4"))
+        
+        if not matches:
+            raise FileNotFoundError(f"No video found for pattern 'seq_{participant}_{exercise}_{repetition}_{viewpoint}_*.mp4' in {video_dir}")
+        if len(matches) > 1:
+            raise ValueError(f"Multiple videos found for pattern 'seq_{participant}_{exercise}_{repetition}_{viewpoint}_*.mp4' in {video_dir}: {matches}")
+        
+        return matches[0]
+    
+    return os.path.join(dataset_path, 'train', participant, 'videos', viewpoint_to_camera_id[viewpoint], f"{exercise}.mp4")
+
+
+def _run_visualization(pred_path: str, gt_path: str, out_folder: str, participant: str, exercise: str, viewpoint: str, metric: str, frame_path: str, error: float, video_file: str, dataset_name: str, repetition: str = None) -> None:
+
+    if dataset_name == 'avafit' and repetition is not None:
+        pred_file = os.path.join(pred_path, participant, exercise, viewpoint, repetition, 'preds.npz')
+        gt_file   = os.path.join(gt_path,   participant, exercise, viewpoint, repetition, 'gt.npz')
+        out_dir   = os.path.join(out_folder, participant, exercise, viewpoint, repetition, metric)
+    else:
+        pred_file = os.path.join(pred_path, participant, exercise, viewpoint, 'preds.npz')
+        gt_file   = os.path.join(gt_path,   participant, exercise, viewpoint, 'gt.npz')
+        out_dir   = os.path.join(out_folder, participant, exercise, viewpoint, metric)
+
+    cmd = (
+        f"python visualize_3D_frame.py"
+        f" --pred_file {pred_file}"
+        f" --gt_file {gt_file}"
+        f" --frame_id {int(frame_path)}"
+        f" --out_folder {out_dir}"
+        f" --error {error}"
+        f" --video_file {video_file}"
+        f" --dataset {dataset_name}"
+    )
+    os.system(cmd)
+
+
+def _process_viewpoint(data: dict, dataset_name: str, dataset_path: str, participant: str, exercise: str, viewpoint: str, pred_path: str, gt_path: str, out_folder: str) -> None:
+    is_avafit = dataset_name == 'avafit'
+    items = (
+        ((rep, metric, frame, error) for rep, metrics in data.items() for metric, frames in metrics.items() for frame, error in frames)
+        if is_avafit else
+        ((None, metric, frame, error) for metric, frames in data.items() for frame, error in frames)
+    )
+
+    for repetition, metric, frame_path, error in items:
+        print(f"Processing {participant} - {exercise} - {viewpoint}" + (f" - {repetition}" if repetition else "") + f" - {metric} - {frame_path} - {error}")
+        video_file = _get_video_file(dataset_name, dataset_path, participant, exercise, viewpoint, repetition)
+        _run_visualization(
+            pred_path, gt_path, out_folder,
+            participant, exercise, viewpoint,
+            metric, frame_path, error,
+            video_file, dataset_name,
+            repetition=repetition
+        )
+
 
 def main(args):
-
     visualize_errors(args.errors_path, args.pred_path, args.gt_path, args.out_folder, args.dataset_path)
+
 
 if __name__ == "__main__":
     args = get_args()
     main(args)
-

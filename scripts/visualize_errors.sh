@@ -1,36 +1,36 @@
 #!/bin/bash
 cd ../
 
+HOME="/opt2/data/jzafra"
+
 # Comprobar si se han pasado suficientes argumentos (Métrica + Tipo Error + Al menos 1 sufijo)
-if [ $# -lt 3 ]; then
+if [ $# -lt 4 ]; then
     echo "Error: Faltan argumentos."
-    echo "Uso: $0 METRIC ERROR_TYPE METHOD_SUFFIX1 [METHOD_SUFFIX2 ...]"
-    echo "Ejemplo: $0 MPJPE top_error v1 v2 v3"
+    echo "Uso: $0 DATASET METRIC ERROR_TYPE METHOD_SUFFIX1 [METHOD_SUFFIX2 ...]"
+    echo "Ejemplo: $0 fit3d MPJPE top_error v1 v2 v3"
     exit 1
 fi
 
-# 1. Asignar los primeros argumentos a variables
-METRIC=$1
-ERROR_TYPE=$2
+DATASET=$1
+METRIC=$2
+ERROR_TYPE=$3
 
-# 2. Desplazar los argumentos 2 posiciones. 
-# $3 pasa a ser $1 (el primer sufijo).
-shift 2
+shift 3
 
-GT_PATH="/opt2/data/jzafra/gt/fit3d"
-DATASET_PATH="/opt2/data/jzafra/datasets/fit3d"
+GT_PATH="${HOME}/gt/${DATASET}"
+DATASET_PATH="${HOME}/datasets/${DATASET}"
 
 # Iterar sobre todos los argumentos restantes (los sufijos)
 for METHOD_SUFFIX in "$@"
 do
-    METHOD_NAME="fit3D_Base_${METHOD_SUFFIX}"
+    METHOD_NAME="${DATASET}_Base_${METHOD_SUFFIX}"
     
     # Aquí ahora usamos la variable ${METRIC} que hemos leído al principio
-    ERRORS_FILE="/opt2/data/jzafra/errors/${METHOD_NAME}/${METRIC}/${ERROR_TYPE}.pkl"
+    ERRORS_FILE="${HOME}/errors/${METHOD_NAME}_${METRIC}/${ERROR_TYPE}_error.json"
     
     # Es recomendable incluir la métrica en el path de salida para no mezclar visualizaciones
-    SAVE_PATH="/opt2/data/jzafra/visualization/${METHOD_NAME}/${METRIC}/${ERROR_TYPE}"
-    PREDS_PATH="/opt2/data/jzafra/predictions/${METHOD_NAME}"
+    SAVE_PATH="${HOME}/visualization/${METHOD_NAME}_${METRIC}/${ERROR_TYPE}"
+    PREDS_PATH="${HOME}/predictions/${METHOD_NAME}"
     
     echo "==============================================="
     echo "Método: ${METHOD_NAME}"

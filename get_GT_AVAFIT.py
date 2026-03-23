@@ -11,8 +11,9 @@ import argparse
 import numpy as np
 import smplx
 
+from utils import MODEL_FOLDER
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-MODEL_FOLDER = "/opt2/data/jzafra/data/"
 
 def get_args():
     parser = argparse.ArgumentParser(description="Get Ground Truth data for evaluation on AVAFIT dataset")
@@ -144,7 +145,7 @@ def prepate_gt(gt_path, save_path):
         # Save the results
         save_dir = os.path.join(save_path, participant, exercise, viewpoint, repetition)
         pathlib.Path(save_dir).mkdir(parents=True, exist_ok=True)
-        np.savez(os.path.join(save_dir, 'gt.npz'), v3d=vertices, transl_pelvis=transl_pelvis)
+        np.savez(os.path.join(save_dir, 'gt.npz'), v3d=vertices, transl_pelvis=transl_pelvis, gender=gt['gender'][0])
         
         print(f'Saved results to {save_dir}')
 

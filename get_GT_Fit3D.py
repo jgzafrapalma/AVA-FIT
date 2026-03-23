@@ -17,6 +17,8 @@ from pytorch3d.transforms import matrix_to_axis_angle
 
 from smplx import build_layer
 
+from utils import MODEL_FOLDER
+
 smplx_cfg = {'ext': 'npz',
              'extra_joint_path': '',
              'folder': 'transfer_data/body_models',
@@ -54,11 +56,10 @@ camera_id_to_viewpoint = {
 }
 
 
-smplx_model = build_layer('/opt2/data/jzafra/data', **smplx_cfg)
+smplx_model = build_layer(MODEL_FOLDER, **smplx_cfg).to(device)
 
 def get_args():
     parser = argparse.ArgumentParser(description="Get Ground Truth data for evaluation on Fit3D dataset")
-    parser.add_argument("--smplx_path", type=str, required=True, help="Path to the SMPLX model")
     parser.add_argument("--gt_path", type=str, required=False, help="Path to the keypoints ground truth (only for Fit3D)")
     parser.add_argument("--save_path", type=str, required=True, help="Path to save the results")
     parser.add_argument("--participants", nargs='+', required=False, help="Participants to process")
@@ -67,7 +68,7 @@ def get_args():
 
 
 def get_camera_smplx_params(smplx_params, cam_params):
-    pelvis = smplx_model(betas=torch.from_numpy(np.array(smplx_params['betas']).astype(np.float32))).joints[:, 0, :].numpy()
+    pelvis = smplx_model(betas=torch.from_numpy(np.array(smplx_params['betas']).astype(np.float32)).to(device)).joints[:, 0, :].detach().cpu().numpy()
     camera_smplx_params = copy.deepcopy(smplx_params)
     camera_smplx_params['global_orient'] = np.matmul(np.array(smplx_params['global_orient']).transpose(0, 1, 3, 2), np.transpose(cam_params['extrinsics']['R'])).transpose(0, 1, 3, 2)
     camera_smplx_params['transl'] = np.matmul(smplx_params['transl'] + pelvis - cam_params['extrinsics']['T'], np.transpose(cam_params['extrinsics']['R'])) - pelvis
@@ -104,7 +105,7 @@ def rotation_matrix_to_axis_angle(tensor_4d: torch.Tensor) -> torch.Tensor:
 
     return axis_angle
 
-def prepate_gt(gt_path, smplx_neutral, save_path, participants=None):
+def prepate_gt(gt_path, save_path, participants=None):
 
     if participants is None:
         participants = os.listdir(os.path.join(gt_path, 'train'))
@@ -126,26 +127,27 @@ def prepate_gt(gt_path, smplx_neutral, save_path, participants=None):
 
                 camera_smplx_params = get_camera_smplx_params(smplx_params, cam_params)
 
-                global_orient = rotation_matrix_to_axis_angle(camera_smplx_params['global_orient']) # [B, 1, 3]
-                body_pose = rotation_matrix_to_axis_angle(camera_smplx_params['body_pose']) # [B, 21, 3]
-                jaw_pose = rotation_matrix_to_axis_angle(camera_smplx_params['jaw_pose']) # [B, 1, 3]
-                left_hand_pose = rotation_matrix_to_axis_angle(camera_smplx_params['left_hand_pose']) # [B, 15, 3]
-                right_hand_pose = rotation_matrix_to_axis_angle(camera_smplx_params['right_hand_pose']) # [B, 15, 3]
-                leye_pose = rotation_matrix_to_axis_angle(camera_smplx_params['leye_pose']) # [B, 1, 3]
-                reye_pose = rotation_matrix_to_axis_angle(camera_smplx_params['reye_pose']) # [B, 1, 3]
+                # global_orient = rotation_matrix_to_axis_angle(camera_smplx_params['global_orient']) # [B, 1, 3]
+                # body_pose = rotation_matrix_to_axis_angle(camera_smplx_params['body_pose']) # [B, 21, 3]
+                # jaw_pose = rotation_matrix_to_axis_angle(camera_smplx_params['jaw_pose']) # [B, 1, 3]
+                # left_hand_pose = rotation_matrix_to_axis_angle(camera_smplx_params['left_hand_pose']) # [B, 15, 3]
+                # right_hand_pose = rotation_matrix_to_axis_angle(camera_smplx_params['right_hand_pose']) # [B, 15, 3]
+                # leye_pose = rotation_matrix_to_axis_angle(camera_smplx_params['leye_pose']) # [B, 1, 3]
+                # reye_pose = rotation_matrix_to_axis_angle(camera_smplx_params['reye_pose']) # [B, 1, 3]
 
-                smplx_output = smplx_neutral(betas=camera_smplx_params['betas'],
-                                            body_pose=body_pose,
-                                            global_orient=global_orient,
-                                            jaw_pose=jaw_pose,
-                                            leye_pose=leye_pose,
-                                            reye_pose=reye_pose,
-                                            left_hand_pose=left_hand_pose,
-                                            right_hand_pose=right_hand_pose,
-                                            expression=camera_smplx_params['expression'],
-                                            transl=camera_smplx_params['transl'],
-                                            pose2rot=True)
+                # smplx_output = smplx_neutral(betas=camera_smplx_params['betas'],
+                #                             body_pose=body_pose,
+                #                             global_orient=global_orient,
+                #                             jaw_pose=jaw_pose,
+                #                             leye_pose=leye_pose,
+                #                             reye_pose=reye_pose,
+                #                             left_hand_pose=left_hand_pose,
+                #                             right_hand_pose=right_hand_pose,
+                #                             expression=camera_smplx_params['expression'],
+                #                             transl=camera_smplx_params['transl'],
+                #                             pose2rot=True)
 
+                smplx_output = smplx_model(**camera_smplx_params)
 
                 vertices = smplx_output.vertices.detach().cpu().numpy() # [B, 10475, 3]
                 transl_pelvis = smplx_output.joints[:, 0, :].detach().cpu().numpy().reshape(-1, 1, 3) # [B, 1, 3]
@@ -159,12 +161,9 @@ def prepate_gt(gt_path, smplx_neutral, save_path, participants=None):
 
 def main(args):
 
-    SMPLX_PATH = args.smplx_path
     SAVE_PATH = args.save_path
 
-    smplx_neutral = SMPLX(SMPLX_PATH, create_transl=True, use_pca=False).to(device)
-
-    prepate_gt(args.gt_path, smplx_neutral, SAVE_PATH, args.participants)
+    prepate_gt(args.gt_path, SAVE_PATH, args.participants)
 
 
 if __name__ == "__main__":

@@ -309,7 +309,7 @@ def evaluate_avafit(predictions_path, gt_smplx_path, output_path,
                     region_errors = metrics.pop("region_errors", None)
                     results[participant][exercise][viewpoint][repetition] = metrics
                     if region_errors is not None:
-                        results[participant][exercise][viewpoint]["region_errors"] = region_errors
+                        results[participant][exercise][viewpoint][repetition]["region_errors"] = region_errors
                     
     pathlib.Path(output_path).mkdir(parents=True, exist_ok=True)
     
@@ -408,15 +408,15 @@ def evaluate_fit3d(predictions_path, gt_smplx_path, output_path,
 def main(args):
 
     PREDICTIONS_PATH = args.preds_path
-    SMPLX_PATH = args.gt_smplx_path
+    GT_PATH = os.path.join(args.gt_smplx_path, args.dataset)
     SAVE_PATH = args.save_path
 
     if args.dataset == "avafit":
-        evaluate_avafit(PREDICTIONS_PATH, SMPLX_PATH, SAVE_PATH,
+        evaluate_avafit(PREDICTIONS_PATH, GT_PATH, SAVE_PATH,
                         args.participants, args.exercises, args.viewpoints,
                         args.repetitions, args.verbose, args.overwrite)
     elif args.dataset == "fit3d":
-        evaluate_fit3d(PREDICTIONS_PATH, SMPLX_PATH, SAVE_PATH,
+        evaluate_fit3d(PREDICTIONS_PATH, GT_PATH, SAVE_PATH,
                        args.participants, args.exercises, args.viewpoints,
                        args.verbose, args.overwrite)
 

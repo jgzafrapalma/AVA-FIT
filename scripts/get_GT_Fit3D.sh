@@ -2,8 +2,7 @@
 # This script is used to get the ground truth data for the Fit3D dataset.
 cd ../
 
+HOME="/opt2/data/jzafra"
 
-python get_GT_Fit3D.py --smplx_path "/opt2/data/jzafra/data/smplx" \
-        --gt_path "/opt2/data/jzafra/datasets/fit3d" \
-        --save_path "/opt2/data/jzafra/gt/fit3d" \
-        --participants "s03" "s04" "s05" "s07" "s08" "s09" "s10"
+CUDA_VISIBLE_DEVICES=0 python get_GT_Fit3D.py --gt_path "${HOME}/datasets/fit3d" \
+        --save_path "${HOME}/gt/fit3d"

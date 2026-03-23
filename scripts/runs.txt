@@ -1,0 +1,37 @@
+# ==========================================
+# AVAFIT dataset
+# ==========================================
+
+# AVAFIT - multihmr
+./get_predictions.sh avafit multihmr --device 0 --cpu_cores "0-11,24-35" --model_name "multiHMR_896_L" --save_mesh #--render #--extra_views
+
+# AVAFIT - 4D-humans
+./get_predictions.sh avafit 4D-humans --device 1 --cpu_cores "0-11,24-35" --save_mesh --batch_size 8 #--render #--extra_views
+
+# AVAFIT - PromptHMR
+./get_predictions.sh avafit PromptHMR --device 0 --cpu_cores "20-39,60-79" --participants "001_herong" --exercise "A003" --camera_id "0" --repetitions "R002"
+
+# AVAFIT - SAM3DBODY
+./get_predictions.sh avafit SAM3DBODY --device 1 --cpu_cores "20-39,60-79"
+
+# AVAFIT - NLF
+./get_predictions.sh avafit NLF --device 1 --cpu_cores "0-11,24-35" --model_name "nlf_l_multi_0.3.2" --render
+
+# ==========================================
+# Fit3D dataset
+# ==========================================
+
+# Fit3D - multihmr
+./get_predictions.sh fit3d multihmr --participants "s05" --device 0 --cpu_cores "20-39,60-79" --camera_ids "65906101" --model_name "multiHMR_896_L" --save_mesh --exercises "warmup_14" #--render --extra_views
+
+# Fit3D - 4D-humans
+./get_predictions.sh fit3d 4D-humans --participants "s08" --device 0 --cpu_cores "20-39,60-79" --camera_ids "58860488" --save_mesh --batch_size 8 --exercises "warmup_1" #--render --extra_views
+
+# Fit3D - PromptHMR
+./get_predictions.sh fit3d PromptHMR --participants "s03" "s04" "s05" "s07" "s08" "s09" "s10" "s11" --device 1 --cpu_cores "0-11,24-35" --camera_ids "50591643" "60457274" "65906101" "58860488"
+
+# Fit3D - SAM3DBODY
+./get_predictions.sh fit3d SAM3DBODY --participants "s11" --device 1 --cpu_cores "0-11,24-35" --camera_ids "65906101" "58860488"
+
+# Fit3D - NLF
+./get_predictions.sh fit3d NLF --device 0 --cpu_cores "0-11,24-35" --model_name "nlf_l_multi_0.3.2" --render

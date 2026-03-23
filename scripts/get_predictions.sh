@@ -6,13 +6,15 @@
 
 cd ../
 
+HOME="/opt2/data/jzafra"
+
 # Comprobar si se han pasado suficientes argumentos
 if [ $# -lt 2 ]; then
     echo "Error: Debes proporcionar el dataset y el método"
     echo "Uso: $0 <dataset> <method> [opciones adicionales...]"
     echo ""
     echo "Datasets disponibles: avafit, fit3d"
-    echo "Métodos disponibles: multihmr, 4D-humans, PromptHMR, SAM3D_BODY"
+    echo "Métodos disponibles: multihmr, 4D-humans, PromptHMR, SAM3DBODY, NLF"
     echo ""
     echo "Opciones adicionales (se pasan directamente al script de Python):"
     echo "  --device <int>              GPU a utilizar (default: 0)"
@@ -38,33 +40,17 @@ DATASET="$1"
 METHOD="$2"
 shift 2  # Quitar dataset y method, el resto son opciones adicionales
 
-# Configurar paths según el dataset
-case "$DATASET" in
-    avafit)
-        DATASET_PATH="/opt2/data/jzafra/datasets/avafit/"
-        OUTPUT_PATH="/opt4/data/jzafra/predictions/avafit_Base_${METHOD}/"
-        PYTHON_SCRIPT="predictions_AVAFIT.py"
-        ;;
-    fit3d)
-        DATASET_PATH="/opt2/data/jzafra/datasets/fit3d/"
-        OUTPUT_PATH="/opt2/data/jzafra/predictions/fit3D_Base_${METHOD}/"
-        PYTHON_SCRIPT="predictions_Fit3D.py"
-        ;;
-    *)
-        echo "Error: Dataset '$DATASET' no reconocido. Usa 'avafit' o 'fit3d'"
-        exit 1
-        ;;
-esac
+DATASET_PATH="${HOME}/datasets/${DATASET}/"
+OUTPUT_PATH="${HOME}/predictions/${DATASET}_Base_${METHOD}/"
 
 echo "==============================================="
-echo "Dataset:      ${DATASET}"
 echo "Método:       ${METHOD}"
 echo "Dataset path: ${DATASET_PATH}"
 echo "Output path:  ${OUTPUT_PATH}"
-echo "Script:       ${PYTHON_SCRIPT}"
 echo "Args extra:   $@"
 echo "==============================================="
 
-python ${PYTHON_SCRIPT} --dataset_path "${DATASET_PATH}" \
+python predictions.py --dataset "${DATASET}" \
+        --dataset_path "${DATASET_PATH}" \
         --output_path "${OUTPUT_PATH}" \
         --method "${METHOD}" "$@"

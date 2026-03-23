@@ -1,1 +1,1 @@
-from .constants import HOME, CONDA_INIT, METHODS_DIR
+from .constants import HOME, CONDA_INIT, METHODS_DIR, MODEL_FOLDER, SMPLX_PATH

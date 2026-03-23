@@ -24,10 +24,8 @@ def get_args():
     parser.add_argument("--gt_file", type=str, required=False, help="File with the SMPLX/SMPL GT vertices")
     parser.add_argument("--video_file", type=str, required=True, help="Video file to visualize")
     parser.add_argument("--frame_id", type=int, required=True, help="Frame id to visualize")
-    parser.add_argument("--error", type=float, required=False, default=0.0, help="Error to visualize")
     parser.add_argument("--out_folder", type=str, required=True, help="Output folder to save the visualization")
-    parser.add_argument("--cam_file", type=str, required=False, help="Camera parameters file (optional)")
-    parser.add_argument("--use_pyvista", action='store_true', help="Use PyVista for visualization")
+    parser.add_argument("--dataset", type=str, required=True, choices=["fit3d", "avafit"], help="Dataset type (fit3d or avafit)")
     return parser.parse_args()
 
 def trimesh_to_pyvista(mesh):
@@ -64,7 +62,7 @@ def create_camera_actor(scale=0.5):
     camera_frustum = pv.PolyData(points, lines=lines.ravel())
     return camera_frustum
 
-def visualize_with_pyvista(mesh_gt, mesh_pred, frame, cam_params=None, error=0.0, frame_id=0):
+def visualize_with_pyvista(mesh_gt, mesh_pred, frame, frame_id=0):
     """
     Visualización interactiva usando PyVista desde la vista de cámara.
     """
@@ -139,7 +137,7 @@ def visualize_with_pyvista(mesh_gt, mesh_pred, frame, cam_params=None, error=0.0
     plotter.show_grid()
 
     # Información
-    text = f"Frame: {frame_id}\nError: {error:.4f}m\nGreen: GT | Red: Pred"
+    text = f"Frame: {frame_id}\nGreen: GT | Red: Pred"
     plotter.add_text(text, position='upper_left', font_size=10)
     
     # Configurar la cámara de PyVista para coincidir inicialmente con la cámara virutal (0,0,0)
@@ -159,8 +157,7 @@ def create_trimesh(vertices, faces, color):
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, vertex_colors=vertex_colors, process=False)
     return mesh
 
-def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: str, 
-                     error: float, frame, cam_file: str = None, use_pyvista: bool = False) -> None:
+def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: str, frame, dataset: str) -> None:
     pathlib.Path(out_folder).mkdir(parents=True, exist_ok=True)
     
     # Cargar datos GT
@@ -172,7 +169,10 @@ def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: st
     preds = np.load(pred_file)
     v3d_hat = preds['v3d']
     pelvis_hat = preds['transl_pelvis']
-    img_ids = np.array([int(p) for p in preds['img_path']]) - 1
+    if dataset == "avafit":
+        img_ids = np.array([int(p) for p in preds['img_path']]) - 1
+    else:
+        img_ids = np.array([int(p) for p in preds['img_path']])
     
     pred_position = np.where(img_ids == frame_id)[0][0]
     
@@ -180,10 +180,12 @@ def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: st
     pelvis = pelvis[frame_id]
     v3d_hat = v3d_hat[pred_position]
     pelvis_hat = pelvis_hat[pred_position]
-    
-    # Preparar mallas
-    smplx_model = SMPLX(SMPLX_PATH, create_transl=True, use_pca=False, 
-                        num_betas=10, ext='pkl', gender='male').to(device)
+
+    if dataset == "avafit":
+        gender = gt['gender']
+        smplx_model = SMPLX(SMPLX_PATH, create_transl=True, use_pca=False, num_betas=10, ext='pkl', gender=gender).to(device)
+    else:
+        smplx_model = SMPLX(SMPLX_PATH).to(device)
     
     if hasattr(preds, 'files') and 'betas' in preds:
         # Si hay betas en la predicción, usarlas podría ser mejor, 
@@ -197,32 +199,15 @@ def visualize_meshes(pred_file: str, frame_id: int, out_folder: str, gt_file: st
         pred_neutral_model = SMPLX(SMPLX_PATH).to(device)
     
     # Lógica de coordenadas
-    if use_pyvista:
-        # Usar coordenadas ABSOLUTAS (Cámara)
-        # No restamos pelvis
-        mesh_gt = create_trimesh(v3d, smplx_model.faces, color=[0, 255, 0])
-        mesh_pred = create_trimesh(v3d_hat, pred_neutral_model.faces, color=[255, 0, 0])
-        
-        print("\n" + "="*60)
-        print("LAUNCHING PYVISTA INTERACTIVE VIEWER (CAMERA VIEW)")
-        print("="*60)
-        visualize_with_pyvista(mesh_gt, mesh_pred, frame, None, error, frame_id)
-        
-    else:
-        # Comportamiento original: Centrado en pelvis para trimesh scene estática/interactiva simple
-        v3d_ctx = v3d - pelvis
-        v3d_hat_ctx = v3d_hat - pelvis_hat
-        
-        mesh_gt = create_trimesh(v3d_ctx, smplx_model.faces, color=[0, 255, 0])
-        mesh_pred = create_trimesh(v3d_hat_ctx, pred_neutral_model.faces, color=[255, 0, 0])
-        
-        # Guardar archivos estáticos
-        cv2.imwrite(os.path.join(out_folder, f"{error:.2f}_{frame_id:06d}.png"), frame)
-        
-        scene = trimesh.Scene()
-        scene.add_geometry(mesh_gt, node_name="ground_truth")
-        scene.add_geometry(mesh_pred, node_name="prediction")
-        scene.export(os.path.join(out_folder, f"{error:.2f}_{frame_id:06d}.glb"), file_type="glb")
+    # Usar coordenadas ABSOLUTAS (Cámara)
+    # No restamos pelvis
+    mesh_gt = create_trimesh(v3d, smplx_model.faces, color=[0, 255, 0])
+    mesh_pred = create_trimesh(v3d_hat, pred_neutral_model.faces, color=[255, 0, 0])
+    
+    print("\n" + "="*60)
+    print("LAUNCHING PYVISTA INTERACTIVE VIEWER (CAMERA VIEW)")
+    print("="*60)
+    visualize_with_pyvista(mesh_gt, mesh_pred, frame, frame_id)
 
 def main(args):
     # Cargar el video
@@ -244,10 +229,8 @@ def main(args):
         args.frame_id, 
         args.out_folder, 
         args.gt_file, 
-        args.error, 
         frame,
-        args.cam_file,
-        args.use_pyvista
+        args.dataset
     )
     
     video.release()
